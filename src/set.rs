@@ -2,13 +2,13 @@ use core::convert::TryInto;
 
 use super::{AnySocket, Error, Result, Socket, SocketRef, SocketType};
 
+use atat::atat_derive::AtatLen;
 use embedded_time::{
     duration::{Generic, Milliseconds},
     Clock, Instant,
 };
 use heapless::Vec;
 use serde::{Deserialize, Serialize};
-use atat::atat_derive::AtatLen;
 
 /// A handle, identifying a socket in a set.
 #[derive(
