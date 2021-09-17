@@ -1,0 +1,30 @@
+[package]
+name = "ublox-sockets"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+embedded-time = "0.11.0"
+defmt = "0.2"
+serde = { version = "^1", default-features = false, features = ["derive"] }
+heapless = { version = "^0.7", features = ["serde"] }
+no-std-net = { version = "^0.5", features = ["serde"] }
+embedded-nal = "0.6.0"
+nb = "^1"
+atat = { version = "0.13.1", features = ["derive"] }
+
+
+[features]
+default = ["socket-udp", "socket-tcp"]
+
+socket-tcp = []
+socket-udp = []
+
+defmt-default = []
+defmt-trace = []
+defmt-debug = []
+defmt-info = []
+defmt-warn = []
+defmt-error = []
