@@ -1,3 +1,5 @@
+#![cfg_attr(not(test), no_std)]
+
 mod meta;
 mod ref_;
 mod ring_buffer;
