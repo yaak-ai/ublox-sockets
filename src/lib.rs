@@ -184,3 +184,29 @@ impl<CLK: Clock, const L: usize> AnySocket<CLK, L> for UdpSocket<CLK, L> {
         }
     }
 }
+
+#[cfg(test)]
+mod test_helpers {
+    use core::ptr::NonNull;
+
+    #[defmt::global_logger]
+    struct Logger;
+    impl defmt::Write for Logger {
+        fn write(&mut self, _bytes: &[u8]) {}
+    }
+
+    unsafe impl defmt::Logger for Logger {
+        fn acquire() -> Option<NonNull<dyn defmt::Write>> {
+            Some(NonNull::from(&Logger as &dyn defmt::Write))
+        }
+
+        unsafe fn release(_: NonNull<dyn defmt::Write>) {}
+    }
+
+    defmt::timestamp!("");
+
+    #[export_name = "_defmt_panic"]
+    fn panic() -> ! {
+        panic!()
+    }
+}
