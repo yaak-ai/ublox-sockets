@@ -60,6 +60,10 @@ impl<CLK: Clock, const L: usize> UdpSocket<CLK, L> {
         self.meta.handle
     }
 
+    pub fn update_handle(&mut self, handle: SocketHandle) {
+        self.meta.update(handle)
+    }
+
     /// Return the bound endpoint.
     pub fn endpoint(&self) -> Option<SocketAddr> {
         self.endpoint

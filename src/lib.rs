@@ -39,6 +39,12 @@ pub enum Error {
     /// or a TCP connection attempt was made to an unspecified endpoint.
     Unaddressable,
 
+    Timer,
+    Timeout,
+
+    SocketClosed,
+    BadLength,
+
     SocketSetFull,
     InvalidSocket,
     DuplicateSocket,

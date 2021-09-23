@@ -10,3 +10,9 @@ pub struct Meta {
     /// Mainly useful for debug output.
     pub(crate) handle: SocketHandle,
 }
+
+impl Meta {
+    pub fn update(&mut self, handle: SocketHandle) {
+        self.handle = handle;
+    }
+}
