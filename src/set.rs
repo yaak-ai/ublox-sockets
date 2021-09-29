@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
     PartialOrd,
     AtatLen,
     Ord,
+    hash32_derive::Hash32,
     Default,
     Serialize,
     Deserialize,
@@ -85,6 +86,10 @@ where
         let handle = socket.handle();
 
         defmt::debug!("Adding socket! {} {}", handle.0, socket.get_type());
+
+        if self.index_of(handle).is_ok() {
+            return Err(Error::DuplicateSocket);
+        }
 
         self.sockets
             .iter_mut()

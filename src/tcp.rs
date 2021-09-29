@@ -7,7 +7,7 @@ use super::{Error, Result, RingBuffer, Socket, SocketHandle, SocketMeta};
 /// A TCP socket ring buffer.
 pub type SocketBuffer<const N: usize> = RingBuffer<u8, N>;
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum State<CLK: Clock> {
     /// Freshly created, unsullied
     Created,
@@ -79,7 +79,7 @@ impl<CLK: Clock, const L: usize> TcpSocket<CLK, L> {
     /// Return the bound endpoint.
     pub fn endpoint(&self) -> Option<SocketAddr> {
         match self.state {
-            State::WaitingForConnect(s) | State::Connected(s) => Some(s),
+            State::Connected(s) | State::WaitingForConnect(s) => Some(s),
             _ => None,
         }
     }
