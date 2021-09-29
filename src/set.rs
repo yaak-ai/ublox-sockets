@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
     PartialOrd,
     AtatLen,
     Ord,
+    hash32_derive::Hash32,
     Default,
     Serialize,
     Deserialize,

@@ -5,6 +5,7 @@ mod ref_;
 mod ring_buffer;
 mod set;
 pub mod tcp;
+pub mod tcp_listener;
 pub mod udp;
 
 use core::convert::TryInto;
@@ -44,6 +45,8 @@ pub enum Error {
 
     SocketClosed,
     BadLength,
+
+    NotBound,
 
     SocketSetFull,
     InvalidSocket,
