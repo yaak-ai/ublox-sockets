@@ -73,6 +73,7 @@ impl<CLK: Clock, const L: usize> TcpSocket<CLK, L> {
     }
 
     pub fn update_handle(&mut self, handle: SocketHandle) {
+        defmt::debug!("[{:?}] Updating handle {:?}", self.handle(), handle);
         self.meta.update(handle)
     }
 
@@ -87,6 +88,13 @@ impl<CLK: Clock, const L: usize> TcpSocket<CLK, L> {
     /// Return the connection state, in terms of the TCP state machine.
     pub fn state(&self) -> &State<CLK> {
         &self.state
+    }
+
+    pub fn reset(&mut self) {
+        self.set_state(State::default());
+        self.rx_buffer.clear();
+        self.set_available_data(0);
+        self.last_check_time = None;
     }
 
     pub fn should_update_available_data(&mut self, ts: Instant<CLK>) -> bool
@@ -157,6 +165,7 @@ impl<CLK: Clock, const L: usize> TcpSocket<CLK, L> {
     /// to send or receive data through the socket; for that, use
     /// [can_recv](#method.can_recv).
     pub fn is_connected(&self) -> bool {
+        defmt::debug!("[{:?}] State: {:?}", self.handle(), self.state);
         matches!(self.state, State::Connected(_))
     }
 
@@ -288,6 +297,7 @@ impl<CLK: Clock, const L: usize> TcpSocket<CLK, L> {
     }
 
     pub fn set_state(&mut self, state: State<CLK>) {
+        defmt::debug!("[{:?}] TCP state change: {:?} -> {:?}", self.handle(), self.state, state);
         self.state = state
     }
 }
