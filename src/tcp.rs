@@ -6,17 +6,17 @@ use fugit::{ExtU32, SecsDurationU32};
 pub type SocketBuffer<const N: usize> = RingBuffer<u8, N>;
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum State<const FREQ_HZ: u32> {
+pub enum State<const TIMER_HZ: u32> {
     /// Freshly created, unsullied
     Created,
     WaitingForConnect(SocketAddr),
     /// TCP connected or UDP has an address
     Connected(SocketAddr),
     /// Block all writes (Socket is closed by remote)
-    ShutdownForWrite(Instant<FREQ_HZ>),
+    ShutdownForWrite(Instant<TIMER_HZ>),
 }
 
-impl<const FREQ_HZ: u32> defmt::Format for State<FREQ_HZ> {
+impl<const TIMER_HZ: u32> defmt::Format for State<TIMER_HZ> {
     fn format(&self, fmt: defmt::Formatter) {
         match self {
             State::Created => defmt::write!(fmt, "State::Created"),
@@ -27,7 +27,7 @@ impl<const FREQ_HZ: u32> defmt::Format for State<FREQ_HZ> {
     }
 }
 
-impl<const FREQ_HZ: u32> Default for State<FREQ_HZ> {
+impl<const TIMER_HZ: u32> Default for State<TIMER_HZ> {
     fn default() -> Self {
         State::Created
     }
@@ -39,19 +39,19 @@ impl<const FREQ_HZ: u32> Default for State<FREQ_HZ> {
 /// Note that, for listening sockets, there is no "backlog"; to be able to simultaneously
 /// accept several connections, as many sockets must be allocated, or any new connection
 /// attempts will be reset.
-pub struct TcpSocket<const FREQ_HZ: u32, const L: usize> {
+pub struct TcpSocket<const TIMER_HZ: u32, const L: usize> {
     pub(crate) meta: SocketMeta,
-    state: State<FREQ_HZ>,
+    state: State<TIMER_HZ>,
     check_interval: SecsDurationU32,
     read_timeout: Option<SecsDurationU32>,
     available_data: usize,
     rx_buffer: SocketBuffer<L>,
-    last_check_time: Option<Instant<FREQ_HZ>>,
+    last_check_time: Option<Instant<TIMER_HZ>>,
 }
 
-impl<const FREQ_HZ: u32, const L: usize> TcpSocket<FREQ_HZ, L> {
+impl<const TIMER_HZ: u32, const L: usize> TcpSocket<TIMER_HZ, L> {
     /// Create a socket using the given buffers.
-    pub fn new(socket_id: u8) -> TcpSocket<FREQ_HZ, L> {
+    pub fn new(socket_id: u8) -> TcpSocket<TIMER_HZ, L> {
         TcpSocket {
             meta: SocketMeta {
                 handle: SocketHandle(socket_id),
@@ -83,11 +83,11 @@ impl<const FREQ_HZ: u32, const L: usize> TcpSocket<FREQ_HZ, L> {
     }
 
     /// Return the connection state, in terms of the TCP state machine.
-    pub fn state(&self) -> &State<FREQ_HZ> {
+    pub fn state(&self) -> &State<TIMER_HZ> {
         &self.state
     }
 
-    pub fn should_update_available_data(&mut self, ts: Instant<FREQ_HZ>) -> bool {
+    pub fn should_update_available_data(&mut self, ts: Instant<TIMER_HZ>) -> bool {
         // Cannot request available data on a socket that is closed by the
         // module
         if !self.is_connected() {
@@ -107,7 +107,7 @@ impl<const FREQ_HZ: u32, const L: usize> TcpSocket<FREQ_HZ, L> {
         should_update
     }
 
-    pub fn recycle(&self, ts: Instant<FREQ_HZ>) -> bool {
+    pub fn recycle(&self, ts: Instant<TIMER_HZ>) -> bool {
         if let Some(read_timeout) = self.read_timeout {
             match self.state {
                 State::Created | State::WaitingForConnect(_) | State::Connected(_) => false,
@@ -121,7 +121,7 @@ impl<const FREQ_HZ: u32, const L: usize> TcpSocket<FREQ_HZ, L> {
         }
     }
 
-    pub fn closed_by_remote(&mut self, ts: Instant<FREQ_HZ>) {
+    pub fn closed_by_remote(&mut self, ts: Instant<TIMER_HZ>) {
         self.set_state(State::ShutdownForWrite(ts));
         self.set_available_data(0);
     }
@@ -273,13 +273,13 @@ impl<const FREQ_HZ: u32, const L: usize> TcpSocket<FREQ_HZ, L> {
         self.rx_buffer.len()
     }
 
-    pub fn set_state(&mut self, state: State<FREQ_HZ>) {
+    pub fn set_state(&mut self, state: State<TIMER_HZ>) {
         self.state = state
     }
 }
 
-impl<const FREQ_HZ: u32, const L: usize> Into<Socket<FREQ_HZ, L>> for TcpSocket<FREQ_HZ, L> {
-    fn into(self) -> Socket<FREQ_HZ, L> {
+impl<const TIMER_HZ: u32, const L: usize> Into<Socket<TIMER_HZ, L>> for TcpSocket<TIMER_HZ, L> {
+    fn into(self) -> Socket<TIMER_HZ, L> {
         Socket::Tcp(self)
     }
 }

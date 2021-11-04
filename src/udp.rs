@@ -23,7 +23,7 @@ impl Default for State {
 ///
 /// A UDP socket is bound to a specific endpoint, and owns transmit and receive
 /// packet buffers.
-pub struct UdpSocket<const FREQ_HZ: u32, const L: usize> {
+pub struct UdpSocket<const TIMER_HZ: u32, const L: usize> {
     pub(crate) meta: SocketMeta,
     pub(crate) endpoint: Option<SocketAddr>,
     check_interval: SecsDurationU32,
@@ -31,13 +31,13 @@ pub struct UdpSocket<const FREQ_HZ: u32, const L: usize> {
     state: State,
     available_data: usize,
     rx_buffer: SocketBuffer<L>,
-    last_check_time: Option<Instant<FREQ_HZ>>,
-    closed_time: Option<Instant<FREQ_HZ>>,
+    last_check_time: Option<Instant<TIMER_HZ>>,
+    closed_time: Option<Instant<TIMER_HZ>>,
 }
 
-impl<const FREQ_HZ: u32, const L: usize> UdpSocket<FREQ_HZ, L> {
+impl<const TIMER_HZ: u32, const L: usize> UdpSocket<TIMER_HZ, L> {
     /// Create an UDP socket with the given buffers.
-    pub fn new(socket_id: u8) -> UdpSocket<FREQ_HZ, L> {
+    pub fn new(socket_id: u8) -> UdpSocket<TIMER_HZ, L> {
         UdpSocket {
             meta: SocketMeta {
                 handle: SocketHandle(socket_id),
@@ -76,7 +76,7 @@ impl<const FREQ_HZ: u32, const L: usize> UdpSocket<FREQ_HZ, L> {
         self.state = state
     }
 
-    pub fn should_update_available_data(&mut self, ts: Instant<FREQ_HZ>) -> bool {
+    pub fn should_update_available_data(&mut self, ts: Instant<TIMER_HZ>) -> bool {
         self.last_check_time
             .replace(ts)
             .and_then(|last_check_time| ts.checked_duration_since(last_check_time))
@@ -84,7 +84,7 @@ impl<const FREQ_HZ: u32, const L: usize> UdpSocket<FREQ_HZ, L> {
             .unwrap_or(false)
     }
 
-    pub fn recycle(&self, ts: Instant<FREQ_HZ>) -> bool {
+    pub fn recycle(&self, ts: Instant<TIMER_HZ>) -> bool {
         if let Some(read_timeout) = self.read_timeout {
             self.closed_time
                 .and_then(|closed_time| ts.checked_duration_since(closed_time))
@@ -95,7 +95,7 @@ impl<const FREQ_HZ: u32, const L: usize> UdpSocket<FREQ_HZ, L> {
         }
     }
 
-    pub fn closed_by_remote(&mut self, ts: Instant<FREQ_HZ>) {
+    pub fn closed_by_remote(&mut self, ts: Instant<TIMER_HZ>) {
         self.closed_time.replace(ts);
     }
 
@@ -221,8 +221,8 @@ impl<const FREQ_HZ: u32, const L: usize> UdpSocket<FREQ_HZ, L> {
     }
 }
 
-impl<const FREQ_HZ: u32, const L: usize> Into<Socket<FREQ_HZ, L>> for UdpSocket<FREQ_HZ, L> {
-    fn into(self) -> Socket<FREQ_HZ, L> {
+impl<const TIMER_HZ: u32, const L: usize> Into<Socket<TIMER_HZ, L>> for UdpSocket<TIMER_HZ, L> {
+    fn into(self) -> Socket<TIMER_HZ, L> {
         Socket::Udp(self)
     }
 }

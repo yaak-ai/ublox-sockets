@@ -48,7 +48,7 @@ pub enum Error {
 }
 
 type Result<T> = core::result::Result<T, Error>;
-pub type Instant<const FREQ_HZ: u32> = fugit::TimerInstantU32<FREQ_HZ>;
+pub type Instant<const TIMER_HZ: u32> = fugit::TimerInstantU32<TIMER_HZ>;
 
 /// A network socket.
 ///
@@ -61,11 +61,11 @@ pub type Instant<const FREQ_HZ: u32> = fugit::TimerInstantU32<FREQ_HZ>;
 /// [AnySocket]: trait.AnySocket.html
 /// [SocketSet::get]: struct.SocketSet.html#method.get
 #[non_exhaustive]
-pub enum Socket<const FREQ_HZ: u32, const L: usize> {
+pub enum Socket<const TIMER_HZ: u32, const L: usize> {
     #[cfg(feature = "socket-udp")]
-    Udp(UdpSocket<FREQ_HZ, L>),
+    Udp(UdpSocket<TIMER_HZ, L>),
     #[cfg(feature = "socket-tcp")]
-    Tcp(TcpSocket<FREQ_HZ, L>),
+    Tcp(TcpSocket<TIMER_HZ, L>),
 }
 
 #[non_exhaustive]
@@ -75,7 +75,7 @@ pub enum SocketType {
     Tcp,
 }
 
-impl<const FREQ_HZ: u32, const L: usize> Socket<FREQ_HZ, L> {
+impl<const TIMER_HZ: u32, const L: usize> Socket<TIMER_HZ, L> {
     /// Return the socket handle.
     #[inline]
     pub fn handle(&self) -> SocketHandle {
@@ -98,7 +98,7 @@ impl<const FREQ_HZ: u32, const L: usize> Socket<FREQ_HZ, L> {
         }
     }
 
-    pub fn should_update_available_data(&mut self, ts: Instant<FREQ_HZ>) -> bool {
+    pub fn should_update_available_data(&mut self, ts: Instant<TIMER_HZ>) -> bool {
         match self {
             Socket::Tcp(s) => s.should_update_available_data(ts),
             Socket::Udp(s) => s.should_update_available_data(ts),
@@ -112,14 +112,14 @@ impl<const FREQ_HZ: u32, const L: usize> Socket<FREQ_HZ, L> {
         }
     }
 
-    pub fn recycle(&self, ts: Instant<FREQ_HZ>) -> bool {
+    pub fn recycle(&self, ts: Instant<TIMER_HZ>) -> bool {
         match self {
             Socket::Tcp(s) => s.recycle(ts),
             Socket::Udp(s) => s.recycle(ts),
         }
     }
 
-    pub fn closed_by_remote(&mut self, ts: Instant<FREQ_HZ>) {
+    pub fn closed_by_remote(&mut self, ts: Instant<TIMER_HZ>) {
         match self {
             Socket::Tcp(s) => s.closed_by_remote(ts),
             Socket::Udp(s) => s.closed_by_remote(ts),
@@ -156,13 +156,13 @@ impl<const FREQ_HZ: u32, const L: usize> Socket<FREQ_HZ, L> {
 }
 
 /// A conversion trait for network sockets.
-pub trait AnySocket<const FREQ_HZ: u32, const L: usize>: Sized {
-    fn downcast(socket_ref: SocketRef<'_, Socket<FREQ_HZ, L>>) -> Result<SocketRef<'_, Self>>;
+pub trait AnySocket<const TIMER_HZ: u32, const L: usize>: Sized {
+    fn downcast(socket_ref: SocketRef<'_, Socket<TIMER_HZ, L>>) -> Result<SocketRef<'_, Self>>;
 }
 
 #[cfg(feature = "socket-tcp")]
-impl<const FREQ_HZ: u32, const L: usize> AnySocket<FREQ_HZ, L> for TcpSocket<FREQ_HZ, L> {
-    fn downcast(ref_: SocketRef<'_, Socket<FREQ_HZ, L>>) -> Result<SocketRef<'_, Self>> {
+impl<const TIMER_HZ: u32, const L: usize> AnySocket<TIMER_HZ, L> for TcpSocket<TIMER_HZ, L> {
+    fn downcast(ref_: SocketRef<'_, Socket<TIMER_HZ, L>>) -> Result<SocketRef<'_, Self>> {
         match SocketRef::into_inner(ref_) {
             Socket::Tcp(ref mut socket) => Ok(SocketRef::new(socket)),
             _ => Err(Error::Illegal),
@@ -171,8 +171,8 @@ impl<const FREQ_HZ: u32, const L: usize> AnySocket<FREQ_HZ, L> for TcpSocket<FRE
 }
 
 #[cfg(feature = "socket-udp")]
-impl<const FREQ_HZ: u32, const L: usize> AnySocket<FREQ_HZ, L> for UdpSocket<FREQ_HZ, L> {
-    fn downcast(ref_: SocketRef<'_, Socket<FREQ_HZ, L>>) -> Result<SocketRef<'_, Self>> {
+impl<const TIMER_HZ: u32, const L: usize> AnySocket<TIMER_HZ, L> for UdpSocket<TIMER_HZ, L> {
+    fn downcast(ref_: SocketRef<'_, Socket<TIMER_HZ, L>>) -> Result<SocketRef<'_, Self>> {
         match SocketRef::into_inner(ref_) {
             Socket::Udp(ref mut socket) => Ok(SocketRef::new(socket)),
             _ => Err(Error::Illegal),
