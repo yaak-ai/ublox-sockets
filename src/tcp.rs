@@ -71,6 +71,7 @@ impl<const TIMER_HZ: u32, const L: usize> TcpSocket<TIMER_HZ, L> {
     }
 
     pub fn update_handle(&mut self, handle: SocketHandle) {
+        defmt::debug!("[{:?}] Updating handle {:?}", self.handle(), handle);
         self.meta.update(handle)
     }
 
@@ -85,6 +86,13 @@ impl<const TIMER_HZ: u32, const L: usize> TcpSocket<TIMER_HZ, L> {
     /// Return the connection state, in terms of the TCP state machine.
     pub fn state(&self) -> &State<TIMER_HZ> {
         &self.state
+    }
+
+    pub fn reset(&mut self) {
+        self.set_state(State::default());
+        self.rx_buffer.clear();
+        self.set_available_data(0);
+        self.last_check_time = None;
     }
 
     pub fn should_update_available_data(&mut self, ts: Instant<TIMER_HZ>) -> bool {
@@ -143,6 +151,7 @@ impl<const TIMER_HZ: u32, const L: usize> TcpSocket<TIMER_HZ, L> {
     /// to send or receive data through the socket; for that, use
     /// [can_recv](#method.can_recv).
     pub fn is_connected(&self) -> bool {
+        defmt::debug!("[{:?}] State: {:?}", self.handle(), self.state);
         matches!(self.state, State::Connected(_))
     }
 
@@ -274,6 +283,7 @@ impl<const TIMER_HZ: u32, const L: usize> TcpSocket<TIMER_HZ, L> {
     }
 
     pub fn set_state(&mut self, state: State<TIMER_HZ>) {
+        defmt::debug!("[{:?}] TCP state change: {:?} -> {:?}", self.handle(), self.state, state);
         self.state = state
     }
 }
