@@ -14,7 +14,7 @@ no-std-net = { version = "^0.5", features = ["serde"] }
 embedded-nal = "0.6.0"
 nb = "^1"
 #atat = { version = "0.13.1", features = ["derive"] }
-atat = { git = "https://github.com/andresv/atat.git", branch = "use-fugit-for-timing", features = ["derive"] }
+atat = { git = "https://github.com/BlackbirdHQ/atat.git", features = ["derive"] }
 hash32 = "0.2.1"
 hash32-derive = "^0.1.0"
 
