@@ -16,6 +16,7 @@ pub enum State<const TIMER_HZ: u32> {
     ShutdownForWrite(Instant<TIMER_HZ>),
 }
 
+#[cfg(feature = "defmt")]
 impl<const TIMER_HZ: u32> defmt::Format for State<TIMER_HZ> {
     fn format(&self, fmt: defmt::Formatter) {
         match self {
@@ -71,7 +72,7 @@ impl<const TIMER_HZ: u32, const L: usize> TcpSocket<TIMER_HZ, L> {
     }
 
     pub fn update_handle(&mut self, handle: SocketHandle) {
-        defmt::debug!("[{:?}] Updating handle {:?}", self.handle(), handle);
+        debug!("[{:?}] Updating handle {:?}", self.handle(), handle);
         self.meta.update(handle)
     }
 
@@ -151,7 +152,7 @@ impl<const TIMER_HZ: u32, const L: usize> TcpSocket<TIMER_HZ, L> {
     /// to send or receive data through the socket; for that, use
     /// [can_recv](#method.can_recv).
     pub fn is_connected(&self) -> bool {
-        defmt::debug!("[{:?}] State: {:?}", self.handle(), self.state);
+        debug!("[{:?}] State: {:?}", self.handle(), self.state);
         matches!(self.state, State::Connected(_))
     }
 
@@ -283,7 +284,7 @@ impl<const TIMER_HZ: u32, const L: usize> TcpSocket<TIMER_HZ, L> {
     }
 
     pub fn set_state(&mut self, state: State<TIMER_HZ>) {
-        defmt::debug!(
+        debug!(
             "[{:?}] TCP state change: {:?} -> {:?}",
             self.handle(),
             self.state,

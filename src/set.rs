@@ -17,8 +17,8 @@ use serde::{Deserialize, Serialize};
     Default,
     Serialize,
     Deserialize,
-    defmt::Format,
 )]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct Handle(pub u8);
 
 /// An extensible set of sockets.
@@ -72,7 +72,7 @@ impl<const TIMER_HZ: u32, const N: usize, const L: usize> Set<TIMER_HZ, N, L> {
         let socket = socket.into();
         let handle = socket.handle();
 
-        defmt::debug!("Adding socket! {} {}", handle.0, socket.get_type());
+        debug!("Adding socket! {} {:?}", handle.0, socket.get_type());
 
         if self.index_of(handle).is_ok() {
             return Err(Error::DuplicateSocket);
@@ -115,8 +115,8 @@ impl<const TIMER_HZ: u32, const N: usize, const L: usize> Set<TIMER_HZ, N, L> {
         let item: &mut Option<Socket<TIMER_HZ, L>> =
             self.sockets.get_mut(index).ok_or(Error::InvalidSocket)?;
 
-        defmt::debug!(
-            "Removing socket! {} {}",
+        debug!(
+            "Removing socket! {} {:?}",
             handle.0,
             item.as_ref().map(|i| i.get_type())
         );
@@ -133,7 +133,7 @@ impl<const TIMER_HZ: u32, const N: usize, const L: usize> Set<TIMER_HZ, N, L> {
             .iter_mut()
             .enumerate()
             .for_each(|(index, slot)| {
-                defmt::debug!("Removing socket @ index {}", index);
+                debug!("Removing socket @ index {}", index);
                 slot.take();
             })
     }
