@@ -8,14 +8,8 @@ pub mod tcp;
 pub mod tcp_listener;
 pub mod udp;
 
-use core::convert::TryInto;
-
 pub(crate) use self::meta::Meta as SocketMeta;
 pub use self::ring_buffer::RingBuffer;
-use embedded_time::{
-    duration::{Generic, Milliseconds},
-    Clock, Instant,
-};
 
 #[cfg(feature = "socket-tcp")]
 pub use tcp::{State as TcpState, TcpSocket};
@@ -54,6 +48,7 @@ pub enum Error {
 }
 
 type Result<T> = core::result::Result<T, Error>;
+pub type Instant<const TIMER_HZ: u32> = fugit::TimerInstantU32<TIMER_HZ>;
 
 /// A network socket.
 ///
@@ -66,11 +61,11 @@ type Result<T> = core::result::Result<T, Error>;
 /// [AnySocket]: trait.AnySocket.html
 /// [SocketSet::get]: struct.SocketSet.html#method.get
 #[non_exhaustive]
-pub enum Socket<CLK: Clock, const L: usize> {
+pub enum Socket<const TIMER_HZ: u32, const L: usize> {
     #[cfg(feature = "socket-udp")]
-    Udp(UdpSocket<CLK, L>),
+    Udp(UdpSocket<TIMER_HZ, L>),
     #[cfg(feature = "socket-tcp")]
-    Tcp(TcpSocket<CLK, L>),
+    Tcp(TcpSocket<TIMER_HZ, L>),
 }
 
 #[non_exhaustive]
@@ -80,7 +75,7 @@ pub enum SocketType {
     Tcp,
 }
 
-impl<CLK: Clock, const L: usize> Socket<CLK, L> {
+impl<const TIMER_HZ: u32, const L: usize> Socket<TIMER_HZ, L> {
     /// Return the socket handle.
     #[inline]
     pub fn handle(&self) -> SocketHandle {
@@ -103,10 +98,7 @@ impl<CLK: Clock, const L: usize> Socket<CLK, L> {
         }
     }
 
-    pub fn should_update_available_data(&mut self, ts: Instant<CLK>) -> bool
-    where
-        Generic<CLK::T>: TryInto<Milliseconds>,
-    {
+    pub fn should_update_available_data(&mut self, ts: Instant<TIMER_HZ>) -> bool {
         match self {
             Socket::Tcp(s) => s.should_update_available_data(ts),
             Socket::Udp(s) => s.should_update_available_data(ts),
@@ -120,20 +112,14 @@ impl<CLK: Clock, const L: usize> Socket<CLK, L> {
         }
     }
 
-    pub fn recycle(&self, ts: &Instant<CLK>) -> bool
-    where
-        Generic<CLK::T>: TryInto<Milliseconds>,
-    {
+    pub fn recycle(&self, ts: Instant<TIMER_HZ>) -> bool {
         match self {
             Socket::Tcp(s) => s.recycle(ts),
             Socket::Udp(s) => s.recycle(ts),
         }
     }
 
-    pub fn closed_by_remote(&mut self, ts: Instant<CLK>)
-    where
-        Generic<CLK::T>: TryInto<Milliseconds>,
-    {
+    pub fn closed_by_remote(&mut self, ts: Instant<TIMER_HZ>) {
         match self {
             Socket::Tcp(s) => s.closed_by_remote(ts),
             Socket::Udp(s) => s.closed_by_remote(ts),
@@ -170,13 +156,13 @@ impl<CLK: Clock, const L: usize> Socket<CLK, L> {
 }
 
 /// A conversion trait for network sockets.
-pub trait AnySocket<CLK: Clock, const L: usize>: Sized {
-    fn downcast(socket_ref: SocketRef<'_, Socket<CLK, L>>) -> Result<SocketRef<'_, Self>>;
+pub trait AnySocket<const TIMER_HZ: u32, const L: usize>: Sized {
+    fn downcast(socket_ref: SocketRef<'_, Socket<TIMER_HZ, L>>) -> Result<SocketRef<'_, Self>>;
 }
 
 #[cfg(feature = "socket-tcp")]
-impl<CLK: Clock, const L: usize> AnySocket<CLK, L> for TcpSocket<CLK, L> {
-    fn downcast(ref_: SocketRef<'_, Socket<CLK, L>>) -> Result<SocketRef<'_, Self>> {
+impl<const TIMER_HZ: u32, const L: usize> AnySocket<TIMER_HZ, L> for TcpSocket<TIMER_HZ, L> {
+    fn downcast(ref_: SocketRef<'_, Socket<TIMER_HZ, L>>) -> Result<SocketRef<'_, Self>> {
         match SocketRef::into_inner(ref_) {
             Socket::Tcp(ref mut socket) => Ok(SocketRef::new(socket)),
             _ => Err(Error::Illegal),
@@ -185,8 +171,8 @@ impl<CLK: Clock, const L: usize> AnySocket<CLK, L> for TcpSocket<CLK, L> {
 }
 
 #[cfg(feature = "socket-udp")]
-impl<CLK: Clock, const L: usize> AnySocket<CLK, L> for UdpSocket<CLK, L> {
-    fn downcast(ref_: SocketRef<'_, Socket<CLK, L>>) -> Result<SocketRef<'_, Self>> {
+impl<const TIMER_HZ: u32, const L: usize> AnySocket<TIMER_HZ, L> for UdpSocket<TIMER_HZ, L> {
+    fn downcast(ref_: SocketRef<'_, Socket<TIMER_HZ, L>>) -> Result<SocketRef<'_, Self>> {
         match SocketRef::into_inner(ref_) {
             Socket::Udp(ref mut socket) => Ok(SocketRef::new(socket)),
             _ => Err(Error::Illegal),

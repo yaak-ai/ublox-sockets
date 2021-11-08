@@ -1,9 +1,7 @@
 use core::cmp::min;
-use core::convert::TryInto;
+use fugit::{ExtU32, SecsDurationU32};
 
-use embedded_time::{duration::*, Clock, Instant};
-
-use super::{Error, Result, RingBuffer, Socket, SocketHandle, SocketMeta};
+use super::{Error, Instant, Result, RingBuffer, Socket, SocketHandle, SocketMeta};
 pub use embedded_nal::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 /// A UDP socket ring buffer.
@@ -25,28 +23,28 @@ impl Default for State {
 ///
 /// A UDP socket is bound to a specific endpoint, and owns transmit and receive
 /// packet buffers.
-pub struct UdpSocket<CLK: Clock, const L: usize> {
+pub struct UdpSocket<const TIMER_HZ: u32, const L: usize> {
     pub(crate) meta: SocketMeta,
     pub(crate) endpoint: Option<SocketAddr>,
-    check_interval: Seconds<u32>,
-    read_timeout: Option<Seconds<u32>>,
+    check_interval: SecsDurationU32,
+    read_timeout: Option<SecsDurationU32>,
     state: State,
     available_data: usize,
     rx_buffer: SocketBuffer<L>,
-    last_check_time: Option<Instant<CLK>>,
-    closed_time: Option<Instant<CLK>>,
+    last_check_time: Option<Instant<TIMER_HZ>>,
+    closed_time: Option<Instant<TIMER_HZ>>,
 }
 
-impl<CLK: Clock, const L: usize> UdpSocket<CLK, L> {
+impl<const TIMER_HZ: u32, const L: usize> UdpSocket<TIMER_HZ, L> {
     /// Create an UDP socket with the given buffers.
-    pub fn new(socket_id: u8) -> UdpSocket<CLK, L> {
+    pub fn new(socket_id: u8) -> UdpSocket<TIMER_HZ, L> {
         UdpSocket {
             meta: SocketMeta {
                 handle: SocketHandle(socket_id),
             },
-            check_interval: Seconds(15),
+            check_interval: 15.secs(),
             state: State::Closed,
-            read_timeout: Some(Seconds(15)),
+            read_timeout: Some(15.secs()),
             endpoint: None,
             available_data: 0,
             rx_buffer: SocketBuffer::new(),
@@ -75,41 +73,35 @@ impl<CLK: Clock, const L: usize> UdpSocket<CLK, L> {
     }
 
     pub fn set_state(&mut self, state: State) {
-        defmt::debug!("{}, UDP state change: {:?} -> {:?}", self.handle(), self.state, state);
+        defmt::debug!(
+            "{}, UDP state change: {:?} -> {:?}",
+            self.handle(),
+            self.state,
+            state
+        );
         self.state = state
     }
 
-    pub fn should_update_available_data(&mut self, ts: Instant<CLK>) -> bool
-    where
-        Generic<CLK::T>: TryInto<Milliseconds>,
-    {
+    pub fn should_update_available_data(&mut self, ts: Instant<TIMER_HZ>) -> bool {
         self.last_check_time
             .replace(ts)
-            .and_then(|ref last_check_time| ts.checked_duration_since(last_check_time))
-            .and_then(|dur| dur.try_into().ok())
-            .map(|dur: Milliseconds<u32>| dur >= self.check_interval)
+            .and_then(|last_check_time| ts.checked_duration_since(last_check_time))
+            .map(|dur| dur >= self.check_interval)
             .unwrap_or(false)
     }
 
-    pub fn recycle(&self, ts: &Instant<CLK>) -> bool
-    where
-        Generic<CLK::T>: TryInto<Milliseconds>,
-    {
+    pub fn recycle(&self, ts: Instant<TIMER_HZ>) -> bool {
         if let Some(read_timeout) = self.read_timeout {
             self.closed_time
-                .and_then(|ref closed_time| ts.checked_duration_since(closed_time))
-                .and_then(|dur| dur.try_into().ok())
-                .map(|dur: Milliseconds<u32>| dur >= read_timeout)
+                .and_then(|closed_time| ts.checked_duration_since(closed_time))
+                .map(|dur| dur >= read_timeout)
                 .unwrap_or(false)
         } else {
             false
         }
     }
 
-    pub fn closed_by_remote(&mut self, ts: Instant<CLK>)
-    where
-        Generic<CLK::T>: TryInto<Milliseconds>,
-    {
+    pub fn closed_by_remote(&mut self, ts: Instant<TIMER_HZ>) {
         self.closed_time.replace(ts);
     }
 
@@ -235,8 +227,8 @@ impl<CLK: Clock, const L: usize> UdpSocket<CLK, L> {
     }
 }
 
-impl<CLK: Clock, const L: usize> Into<Socket<CLK, L>> for UdpSocket<CLK, L> {
-    fn into(self) -> Socket<CLK, L> {
+impl<const TIMER_HZ: u32, const L: usize> Into<Socket<TIMER_HZ, L>> for UdpSocket<TIMER_HZ, L> {
+    fn into(self) -> Socket<TIMER_HZ, L> {
         Socket::Udp(self)
     }
 }

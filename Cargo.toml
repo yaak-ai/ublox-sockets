@@ -6,16 +6,20 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-embedded-time = "0.11.0"
+fugit = "0.3"
 defmt = "0.2"
 serde = { version = "^1", default-features = false, features = ["derive"] }
 heapless = { version = "^0.7", features = ["serde"] }
 no-std-net = { version = "^0.5", features = ["serde"] }
 embedded-nal = "0.6.0"
 nb = "^1"
-atat = { version = "0.13.1", features = ["derive"] }
+#atat = { version = "0.13.1", features = ["derive"] }
+atat = { git = "https://github.com/BlackbirdHQ/atat.git", features = ["derive"] }
 hash32 = "0.2.1"
 hash32-derive = "^0.1.0"
+
+[dev-dependencies]
+embedded-hal = { version = "=1.0.0-alpha.4" }
 
 [features]
 default = ["socket-udp", "socket-tcp"]

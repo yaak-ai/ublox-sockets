@@ -1,24 +1,22 @@
-use core::convert::TryInto;
+use super::{Error, Instant, Result, RingBuffer, Socket, SocketHandle, SocketMeta};
 use embedded_nal::SocketAddr;
-use embedded_time::{duration::*, Clock, Instant};
-
-use super::{Error, Result, RingBuffer, Socket, SocketHandle, SocketMeta};
+use fugit::{ExtU32, SecsDurationU32};
 
 /// A TCP socket ring buffer.
 pub type SocketBuffer<const N: usize> = RingBuffer<u8, N>;
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum State<CLK: Clock> {
+pub enum State<const TIMER_HZ: u32> {
     /// Freshly created, unsullied
     Created,
     WaitingForConnect(SocketAddr),
     /// TCP connected or UDP has an address
     Connected(SocketAddr),
     /// Block all writes (Socket is closed by remote)
-    ShutdownForWrite(Instant<CLK>),
+    ShutdownForWrite(Instant<TIMER_HZ>),
 }
 
-impl<CLK: Clock> defmt::Format for State<CLK> {
+impl<const TIMER_HZ: u32> defmt::Format for State<TIMER_HZ> {
     fn format(&self, fmt: defmt::Formatter) {
         match self {
             State::Created => defmt::write!(fmt, "State::Created"),
@@ -29,7 +27,7 @@ impl<CLK: Clock> defmt::Format for State<CLK> {
     }
 }
 
-impl<CLK: Clock> Default for State<CLK> {
+impl<const TIMER_HZ: u32> Default for State<TIMER_HZ> {
     fn default() -> Self {
         State::Created
     }
@@ -41,19 +39,19 @@ impl<CLK: Clock> Default for State<CLK> {
 /// Note that, for listening sockets, there is no "backlog"; to be able to simultaneously
 /// accept several connections, as many sockets must be allocated, or any new connection
 /// attempts will be reset.
-pub struct TcpSocket<CLK: Clock, const L: usize> {
+pub struct TcpSocket<const TIMER_HZ: u32, const L: usize> {
     pub(crate) meta: SocketMeta,
-    state: State<CLK>,
-    check_interval: Seconds<u32>,
-    read_timeout: Option<Seconds<u32>>,
+    state: State<TIMER_HZ>,
+    check_interval: SecsDurationU32,
+    read_timeout: Option<SecsDurationU32>,
     available_data: usize,
     rx_buffer: SocketBuffer<L>,
-    last_check_time: Option<Instant<CLK>>,
+    last_check_time: Option<Instant<TIMER_HZ>>,
 }
 
-impl<CLK: Clock, const L: usize> TcpSocket<CLK, L> {
+impl<const TIMER_HZ: u32, const L: usize> TcpSocket<TIMER_HZ, L> {
     /// Create a socket using the given buffers.
-    pub fn new(socket_id: u8) -> TcpSocket<CLK, L> {
+    pub fn new(socket_id: u8) -> TcpSocket<TIMER_HZ, L> {
         TcpSocket {
             meta: SocketMeta {
                 handle: SocketHandle(socket_id),
@@ -61,8 +59,8 @@ impl<CLK: Clock, const L: usize> TcpSocket<CLK, L> {
             state: State::default(),
             rx_buffer: SocketBuffer::new(),
             available_data: 0,
-            check_interval: Seconds(15),
-            read_timeout: Some(Seconds(15)),
+            check_interval: 15.secs(),
+            read_timeout: Some(15.secs()),
             last_check_time: None,
         }
     }
@@ -86,7 +84,7 @@ impl<CLK: Clock, const L: usize> TcpSocket<CLK, L> {
     }
 
     /// Return the connection state, in terms of the TCP state machine.
-    pub fn state(&self) -> &State<CLK> {
+    pub fn state(&self) -> &State<TIMER_HZ> {
         &self.state
     }
 
@@ -97,10 +95,7 @@ impl<CLK: Clock, const L: usize> TcpSocket<CLK, L> {
         self.last_check_time = None;
     }
 
-    pub fn should_update_available_data(&mut self, ts: Instant<CLK>) -> bool
-    where
-        Generic<CLK::T>: TryInto<Milliseconds>,
-    {
+    pub fn should_update_available_data(&mut self, ts: Instant<TIMER_HZ>) -> bool {
         // Cannot request available data on a socket that is closed by the
         // module
         if !self.is_connected() {
@@ -109,10 +104,8 @@ impl<CLK: Clock, const L: usize> TcpSocket<CLK, L> {
 
         let should_update = self
             .last_check_time
-            .as_ref()
             .and_then(|last_check_time| ts.checked_duration_since(last_check_time))
-            .and_then(|dur| dur.try_into().ok())
-            .map(|dur: Milliseconds<u32>| dur >= self.check_interval)
+            .map(|dur| dur >= self.check_interval)
             .unwrap_or(true);
 
         if should_update {
@@ -122,17 +115,13 @@ impl<CLK: Clock, const L: usize> TcpSocket<CLK, L> {
         should_update
     }
 
-    pub fn recycle(&self, ts: &Instant<CLK>) -> bool
-    where
-        Generic<CLK::T>: TryInto<Milliseconds>,
-    {
+    pub fn recycle(&self, ts: Instant<TIMER_HZ>) -> bool {
         if let Some(read_timeout) = self.read_timeout {
             match self.state {
                 State::Created | State::WaitingForConnect(_) | State::Connected(_) => false,
-                State::ShutdownForWrite(ref closed_time) => ts
+                State::ShutdownForWrite(closed_time) => ts
                     .checked_duration_since(closed_time)
-                    .and_then(|dur| dur.try_into().ok())
-                    .map(|dur: Milliseconds<u32>| dur >= read_timeout)
+                    .map(|dur| dur >= read_timeout)
                     .unwrap_or(false),
             }
         } else {
@@ -140,10 +129,7 @@ impl<CLK: Clock, const L: usize> TcpSocket<CLK, L> {
         }
     }
 
-    pub fn closed_by_remote(&mut self, ts: Instant<CLK>)
-    where
-        Generic<CLK::T>: TryInto<Milliseconds>,
-    {
+    pub fn closed_by_remote(&mut self, ts: Instant<TIMER_HZ>) {
         self.set_state(State::ShutdownForWrite(ts));
         self.set_available_data(0);
     }
@@ -296,14 +282,19 @@ impl<CLK: Clock, const L: usize> TcpSocket<CLK, L> {
         self.rx_buffer.len()
     }
 
-    pub fn set_state(&mut self, state: State<CLK>) {
-        defmt::debug!("[{:?}] TCP state change: {:?} -> {:?}", self.handle(), self.state, state);
+    pub fn set_state(&mut self, state: State<TIMER_HZ>) {
+        defmt::debug!(
+            "[{:?}] TCP state change: {:?} -> {:?}",
+            self.handle(),
+            self.state,
+            state
+        );
         self.state = state
     }
 }
 
-impl<CLK: Clock, const L: usize> Into<Socket<CLK, L>> for TcpSocket<CLK, L> {
-    fn into(self) -> Socket<CLK, L> {
+impl<const TIMER_HZ: u32, const L: usize> Into<Socket<TIMER_HZ, L>> for TcpSocket<TIMER_HZ, L> {
+    fn into(self) -> Socket<TIMER_HZ, L> {
         Socket::Tcp(self)
     }
 }
