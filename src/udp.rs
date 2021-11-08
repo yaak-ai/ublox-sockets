@@ -7,7 +7,8 @@ pub use embedded_nal::{Ipv4Addr, SocketAddr, SocketAddrV4};
 /// A UDP socket ring buffer.
 pub type SocketBuffer<const N: usize> = RingBuffer<u8, N>;
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, defmt::Format)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum State {
     Closed,
     Established,
@@ -73,8 +74,8 @@ impl<const TIMER_HZ: u32, const L: usize> UdpSocket<TIMER_HZ, L> {
     }
 
     pub fn set_state(&mut self, state: State) {
-        defmt::debug!(
-            "{}, UDP state change: {:?} -> {:?}",
+        debug!(
+            "{:?}, UDP state change: {:?} -> {:?}",
             self.handle(),
             self.state,
             state

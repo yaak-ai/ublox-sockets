@@ -1,5 +1,8 @@
 #![cfg_attr(not(test), no_std)]
 
+// This mod MUST go first, so that the others see its macros.
+pub(crate) mod fmt;
+
 mod meta;
 mod ref_;
 mod ring_buffer;
@@ -23,7 +26,8 @@ pub use self::ref_::Ref as SocketRef;
 
 /// The error type for the networking stack.
 #[non_exhaustive]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {
     /// An operation cannot proceed because a buffer is empty or full.
     Exhausted,
@@ -69,7 +73,8 @@ pub enum Socket<const TIMER_HZ: u32, const L: usize> {
 }
 
 #[non_exhaustive]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum SocketType {
     Udp,
     Tcp,
@@ -181,6 +186,7 @@ impl<const TIMER_HZ: u32, const L: usize> AnySocket<TIMER_HZ, L> for UdpSocket<T
 }
 
 #[cfg(test)]
+#[cfg(feature = "defmt")]
 mod test_helpers {
     use core::ptr::NonNull;
 

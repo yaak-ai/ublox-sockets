@@ -7,7 +7,6 @@ edition = "2018"
 
 [dependencies]
 fugit = "0.3"
-defmt = "0.2"
 serde = { version = "^1", default-features = false, features = ["derive"] }
 heapless = { version = "^0.7", features = ["serde"] }
 no-std-net = { version = "^0.5", features = ["serde"] }
@@ -18,6 +17,9 @@ atat = { git = "https://github.com/BlackbirdHQ/atat.git", features = ["derive"] 
 hash32 = "0.2.1"
 hash32-derive = "^0.1.0"
 
+log = { version = "^0.4", default-features = false, optional = true }
+defmt = { version = "^0.2", optional = true }
+
 [dev-dependencies]
 embedded-hal = { version = "=1.0.0-alpha.4" }
 
@@ -27,9 +29,9 @@ default = ["socket-udp", "socket-tcp"]
 socket-tcp = []
 socket-udp = []
 
-defmt-default = []
-defmt-trace = []
-defmt-debug = []
-defmt-info = []
-defmt-warn = []
-defmt-error = []
+defmt-default = ["defmt"]
+defmt-trace = ["defmt"]
+defmt-debug = ["defmt"]
+defmt-info = ["defmt"]
+defmt-warn = ["defmt"]
+defmt-error = ["defmt"]
