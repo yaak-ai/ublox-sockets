@@ -73,7 +73,12 @@ impl<const TIMER_HZ: u32, const L: usize> UdpSocket<TIMER_HZ, L> {
     }
 
     pub fn set_state(&mut self, state: State) {
-        defmt::debug!("{}, UDP state change: {:?} -> {:?}", self.handle(), self.state, state);
+        defmt::debug!(
+            "{}, UDP state change: {:?} -> {:?}",
+            self.handle(),
+            self.state,
+            state
+        );
         self.state = state
     }
 

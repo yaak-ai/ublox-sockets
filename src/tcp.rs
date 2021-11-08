@@ -283,7 +283,12 @@ impl<const TIMER_HZ: u32, const L: usize> TcpSocket<TIMER_HZ, L> {
     }
 
     pub fn set_state(&mut self, state: State<TIMER_HZ>) {
-        defmt::debug!("[{:?}] TCP state change: {:?} -> {:?}", self.handle(), self.state, state);
+        defmt::debug!(
+            "[{:?}] TCP state change: {:?} -> {:?}",
+            self.handle(),
+            self.state,
+            state
+        );
         self.state = state
     }
 }
