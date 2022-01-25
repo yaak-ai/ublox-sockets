@@ -174,7 +174,7 @@ mod tests {
     use super::*;
     use crate::{TcpSocket, UdpSocket};
 
-    use embedded_hal::timer::CountDown;
+    use embedded_hal::timer::nb::CountDown;
     use fugit::{ExtU32, MillisDurationU32};
     use std::convert::Infallible;
 
@@ -198,7 +198,7 @@ mod tests {
         type Time = MillisDurationU32;
         type Error = Infallible;
 
-        fn try_start<T>(&mut self, count: T) -> core::result::Result<(), Self::Error>
+        fn start<T>(&mut self, count: T) -> core::result::Result<(), Self::Error>
         where
             T: Into<Self::Time>,
         {
@@ -207,7 +207,7 @@ mod tests {
             Ok(())
         }
 
-        fn try_wait(&mut self) -> nb::Result<(), Self::Error> {
+        fn wait(&mut self) -> nb::Result<(), Self::Error> {
             if std::time::Instant::now() - self.start
                 > std::time::Duration::from_millis(self.millis.ticks() as u64)
             {
@@ -223,9 +223,9 @@ mod tests {
         let now = std::time::Instant::now();
 
         let mut timer = MockTimer::new();
-        timer.try_start(1000.millis()).unwrap();
-        //timer.try_start(1.secs::<1, 1000>().convert()).unwrap();
-        nb::block!(timer.try_wait()).unwrap();
+        timer.start(1000.millis()).unwrap();
+        //timer.start(1.secs::<1, 1000>().convert()).unwrap();
+        nb::block!(timer.wait()).unwrap();
         assert!(now.elapsed().as_millis() >= 1_000);
     }
 
