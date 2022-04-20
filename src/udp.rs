@@ -60,6 +60,11 @@ impl<const TIMER_HZ: u32, const L: usize> UdpSocket<TIMER_HZ, L> {
     }
 
     pub fn update_handle(&mut self, handle: SocketHandle) {
+        debug!(
+            "[UDP Socket] [{:?}] Updating handle {:?}",
+            self.handle(),
+            handle
+        );
         self.meta.update(handle)
     }
 
@@ -75,7 +80,7 @@ impl<const TIMER_HZ: u32, const L: usize> UdpSocket<TIMER_HZ, L> {
 
     pub fn set_state(&mut self, state: State) {
         debug!(
-            "{:?}, UDP state change: {:?} -> {:?}",
+            "[UDP Socket] {:?}, state change: {:?} -> {:?}",
             self.handle(),
             self.state,
             state
@@ -225,6 +230,13 @@ impl<const TIMER_HZ: u32, const L: usize> UdpSocket<TIMER_HZ, L> {
 
     pub fn close(&mut self) {
         self.endpoint.take();
+    }
+}
+
+#[cfg(feature = "defmt")]
+impl<const TIMER_HZ: u32, const L: usize> defmt::Format for UdpSocket<TIMER_HZ, L> {
+    fn format(&self, fmt: defmt::Formatter) {
+        defmt::write!(fmt, "[{:?}, {:?}],", self.handle(), self.state())
     }
 }
 

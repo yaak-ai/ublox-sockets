@@ -72,7 +72,12 @@ impl<const TIMER_HZ: u32, const N: usize, const L: usize> Set<TIMER_HZ, N, L> {
         let socket = socket.into();
         let handle = socket.handle();
 
-        debug!("Adding socket! {} {:?}", handle.0, socket.get_type());
+        debug!(
+            "[Socket Set] Adding: {} {:?} to: {:?}",
+            handle.0,
+            socket.get_type(),
+            self
+        );
 
         if self.index_of(handle).is_ok() {
             return Err(Error::DuplicateSocket);
@@ -116,7 +121,7 @@ impl<const TIMER_HZ: u32, const N: usize, const L: usize> Set<TIMER_HZ, N, L> {
             self.sockets.get_mut(index).ok_or(Error::InvalidSocket)?;
 
         debug!(
-            "Removing socket! {} {:?}",
+            "[Socket Set] Removing socket! {} {:?}",
             handle.0,
             item.as_ref().map(|i| i.get_type())
         );
@@ -129,13 +134,10 @@ impl<const TIMER_HZ: u32, const N: usize, const L: usize> Set<TIMER_HZ, N, L> {
     ///
     /// All sockets are removed and dropped.
     pub fn prune(&mut self) {
-        self.sockets
-            .iter_mut()
-            .enumerate()
-            .for_each(|(index, slot)| {
-                debug!("Removing socket @ index {}", index);
-                slot.take();
-            })
+        debug!("[Socket Set] Pruning: {:?}", self);
+        self.sockets.iter_mut().enumerate().for_each(|(_, slot)| {
+            slot.take();
+        })
     }
 
     pub fn recycle(&mut self, ts: Instant<TIMER_HZ>) -> bool {
@@ -166,6 +168,20 @@ impl<const TIMER_HZ: u32, const N: usize, const L: usize> Set<TIMER_HZ, N, L> {
                 None
             }
         })
+    }
+}
+
+#[cfg(feature = "defmt")]
+impl<const TIMER_HZ: u32, const N: usize, const L: usize> defmt::Format for Set<TIMER_HZ, N, L> {
+    fn format(&self, fmt: defmt::Formatter) {
+        defmt::write!(fmt, "[");
+        for socket in self.iter() {
+            match socket.1 {
+                Socket::Udp(s) => defmt::write!(fmt, "[{:?}, UDP({:?})],", socket.0, s.state()),
+                Socket::Tcp(s) => defmt::write!(fmt, "[{:?}, TCP({:?})],", socket.0, s.state()),
+            }
+        }
+        defmt::write!(fmt, "]");
     }
 }
 
