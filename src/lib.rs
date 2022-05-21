@@ -10,6 +10,7 @@ mod set;
 pub mod tcp;
 pub mod tcp_listener;
 pub mod udp;
+pub mod udp_listener;
 
 pub(crate) use self::meta::Meta as SocketMeta;
 pub use self::ring_buffer::RingBuffer;
@@ -45,6 +46,8 @@ pub enum Error {
     BadLength,
 
     NotBound,
+
+    ListenerError,
 
     SocketSetFull,
     InvalidSocket,
