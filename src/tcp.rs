@@ -40,6 +40,7 @@ impl<const TIMER_HZ: u32> Default for State<TIMER_HZ> {
 /// Note that, for listening sockets, there is no "backlog"; to be able to simultaneously
 /// accept several connections, as many sockets must be allocated, or any new connection
 /// attempts will be reset.
+#[derive(Debug)]
 pub struct TcpSocket<const TIMER_HZ: u32, const L: usize> {
     pub(crate) meta: SocketMeta,
     state: State<TIMER_HZ>,

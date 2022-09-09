@@ -68,6 +68,7 @@ pub type Instant<const TIMER_HZ: u32> = fugit::TimerInstantU32<TIMER_HZ>;
 /// [AnySocket]: trait.AnySocket.html
 /// [SocketSet::get]: struct.SocketSet.html#method.get
 #[non_exhaustive]
+#[derive(Debug)]
 pub enum Socket<const TIMER_HZ: u32, const L: usize> {
     #[cfg(feature = "socket-udp")]
     Udp(UdpSocket<TIMER_HZ, L>),

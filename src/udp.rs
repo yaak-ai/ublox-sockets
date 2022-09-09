@@ -24,6 +24,7 @@ impl Default for State {
 ///
 /// A UDP socket is bound to a specific endpoint, and owns transmit and receive
 /// packet buffers.
+#[derive(Debug)]
 pub struct UdpSocket<const TIMER_HZ: u32, const L: usize> {
     pub(crate) meta: SocketMeta,
     pub(crate) endpoint: Option<SocketAddr>,
