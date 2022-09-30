@@ -1,6 +1,6 @@
 [package]
 name = "ublox-sockets"
-version = "0.4.1"
+version = "0.5.0"
 edition = "2021"
 authors = ["Mathias Koch <mk@blackbird.online>"]
 description = "Common sockets layer for host-based ublox devices"
