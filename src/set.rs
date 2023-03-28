@@ -1,4 +1,4 @@
-use super::{AnySocket, Error, Instant, Result, Socket, SocketRef, SocketType};
+use super::{AnySocket, Error, Result, Socket, SocketRef, SocketType};
 use atat::atat_derive::AtatLen;
 use heapless::Vec;
 use serde::{Deserialize, Serialize};
@@ -23,13 +23,13 @@ pub struct Handle(pub u8);
 
 /// An extensible set of sockets.
 #[derive(Default, Debug)]
-pub struct Set<const TIMER_HZ: u32, const N: usize, const L: usize> {
-    pub sockets: Vec<Option<Socket<TIMER_HZ, L>>, N>,
+pub struct Set<const N: usize, const L: usize> {
+    pub sockets: Vec<Option<Socket<L>>, N>,
 }
 
-impl<const TIMER_HZ: u32, const N: usize, const L: usize> Set<TIMER_HZ, N, L> {
+impl<const N: usize, const L: usize> Set<N, L> {
     /// Create a socket set using the provided storage.
-    pub fn new() -> Set<TIMER_HZ, N, L> {
+    pub fn new() -> Set<N, L> {
         let mut sockets = Vec::new();
         while sockets.len() < N {
             sockets.push(None).ok();
@@ -67,7 +67,7 @@ impl<const TIMER_HZ: u32, const N: usize, const L: usize> Set<TIMER_HZ, N, L> {
     /// Add a socket to the set with the reference count 1, and return its handle.
     pub fn add<T>(&mut self, socket: T) -> Result<Handle>
     where
-        T: Into<Socket<TIMER_HZ, L>>,
+        T: Into<Socket<L>>,
     {
         let socket = socket.into();
         let handle = socket.handle();
@@ -93,7 +93,7 @@ impl<const TIMER_HZ: u32, const N: usize, const L: usize> Set<TIMER_HZ, N, L> {
     }
 
     /// Get a socket from the set by its handle, as mutable.
-    pub fn get<T: AnySocket<TIMER_HZ, L>>(&mut self, handle: Handle) -> Result<SocketRef<T>> {
+    pub fn get<T: AnySocket<L>>(&mut self, handle: Handle) -> Result<SocketRef<T>> {
         let index = self.index_of(handle)?;
 
         match self.sockets.get_mut(index).ok_or(Error::InvalidSocket)? {
@@ -117,7 +117,7 @@ impl<const TIMER_HZ: u32, const N: usize, const L: usize> Set<TIMER_HZ, N, L> {
     /// Remove a socket from the set
     pub fn remove(&mut self, handle: Handle) -> Result<()> {
         let index = self.index_of(handle)?;
-        let item: &mut Option<Socket<TIMER_HZ, L>> =
+        let item: &mut Option<Socket<L>> =
             self.sockets.get_mut(index).ok_or(Error::InvalidSocket)?;
 
         debug!(
@@ -140,8 +140,8 @@ impl<const TIMER_HZ: u32, const N: usize, const L: usize> Set<TIMER_HZ, N, L> {
         })
     }
 
-    pub fn recycle(&mut self, ts: Instant<TIMER_HZ>) -> bool {
-        let h = self.iter().find(|(_, s)| s.recycle(ts)).map(|(h, _)| h);
+    pub fn recycle(&mut self) -> bool {
+        let h = self.iter().find(|(_, s)| s.recycle()).map(|(h, _)| h);
         if h.is_none() {
             return false;
         }
@@ -149,7 +149,7 @@ impl<const TIMER_HZ: u32, const N: usize, const L: usize> Set<TIMER_HZ, N, L> {
     }
 
     /// Iterate every socket in this set.
-    pub fn iter(&self) -> impl Iterator<Item = (Handle, &Socket<TIMER_HZ, L>)> {
+    pub fn iter(&self) -> impl Iterator<Item = (Handle, &Socket<L>)> {
         self.sockets.iter().filter_map(|slot| {
             if let Some(socket) = slot {
                 Some((Handle(socket.handle().0), socket))
@@ -160,7 +160,7 @@ impl<const TIMER_HZ: u32, const N: usize, const L: usize> Set<TIMER_HZ, N, L> {
     }
 
     /// Iterate every socket in this set, as SocketRef.
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (Handle, SocketRef<Socket<TIMER_HZ, L>>)> {
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (Handle, SocketRef<Socket<L>>)> {
         self.sockets.iter_mut().filter_map(|slot| {
             if let Some(socket) = slot {
                 Some((Handle(socket.handle().0), SocketRef::new(socket)))
@@ -172,7 +172,7 @@ impl<const TIMER_HZ: u32, const N: usize, const L: usize> Set<TIMER_HZ, N, L> {
 }
 
 #[cfg(feature = "defmt")]
-impl<const TIMER_HZ: u32, const N: usize, const L: usize> defmt::Format for Set<TIMER_HZ, N, L> {
+impl<const N: usize, const L: usize> defmt::Format for Set<N, L> {
     fn format(&self, fmt: defmt::Formatter) {
         defmt::write!(fmt, "[");
         for socket in self.iter() {
@@ -190,81 +190,9 @@ mod tests {
     use super::*;
     use crate::{TcpSocket, UdpSocket};
 
-    use fugit::{ExtU32, MillisDurationU32};
-    use fugit_timer::Timer;
-    use std::convert::Infallible;
-
-    const TIMER_HZ: u32 = 1000;
-
-    pub struct MockTimer {
-        monotonic: std::time::Instant,
-        start: Option<std::time::Instant>,
-        duration: MillisDurationU32,
-    }
-
-    impl MockTimer {
-        pub fn new() -> MockTimer {
-            MockTimer {
-                monotonic: std::time::Instant::now(),
-                start: None,
-                duration: MillisDurationU32::millis(0),
-            }
-        }
-    }
-
-    impl Timer<TIMER_HZ> for MockTimer {
-        type Error = Infallible;
-
-        fn now(&mut self) -> fugit::TimerInstantU32<TIMER_HZ> {
-            let millis = self.monotonic.elapsed().as_millis();
-            fugit::TimerInstantU32::from_ticks(millis as u32)
-        }
-
-        fn start(
-            &mut self,
-            duration: fugit::TimerDurationU32<TIMER_HZ>,
-        ) -> std::result::Result<(), Self::Error> {
-            self.start = Some(std::time::Instant::now());
-            self.duration = duration.convert();
-            Ok(())
-        }
-
-        fn cancel(&mut self) -> std::result::Result<(), Self::Error> {
-            if self.start.is_some() {
-                self.start = None;
-            }
-            Ok(())
-        }
-
-        fn wait(&mut self) -> nb::Result<(), Self::Error> {
-            if let Some(start) = self.start {
-                let now = std::time::Instant::now();
-                if now - start > std::time::Duration::from_millis(self.duration.ticks() as u64) {
-                    Ok(())
-                } else {
-                    std::thread::sleep(std::time::Duration::from_millis(1));
-                    Err(nb::Error::WouldBlock)
-                }
-            } else {
-                Ok(())
-            }
-        }
-    }
-
-    #[test]
-    fn mock_timer_works() {
-        let now = std::time::Instant::now();
-
-        let mut timer = MockTimer::new();
-        timer.start(1000.millis()).unwrap();
-        //timer.start(1.secs::<1, 1000>().convert()).unwrap();
-        nb::block!(timer.wait()).unwrap();
-        assert!(now.elapsed().as_millis() >= 1_000);
-    }
-
     #[test]
     fn add_socket() {
-        let mut set = Set::<TIMER_HZ, 2, 64>::new();
+        let mut set = Set::<2, 64>::new();
 
         assert_eq!(set.add(TcpSocket::new(0)), Ok(Handle(0)));
         assert_eq!(set.len(), 1);
@@ -274,7 +202,7 @@ mod tests {
 
     #[test]
     fn remove_socket() {
-        let mut set = Set::<TIMER_HZ, 2, 64>::new();
+        let mut set = Set::<2, 64>::new();
 
         assert_eq!(set.add(TcpSocket::new(0)), Ok(Handle(0)));
         assert_eq!(set.len(), 1);
@@ -284,15 +212,15 @@ mod tests {
         assert!(set.remove(Handle(0)).is_ok());
         assert_eq!(set.len(), 1);
 
-        assert!(set.get::<TcpSocket<TIMER_HZ, 64>>(Handle(0)).is_err());
+        assert!(set.get::<TcpSocket<64>>(Handle(0)).is_err());
 
-        set.get::<UdpSocket<TIMER_HZ, 64>>(Handle(1))
+        set.get::<UdpSocket<64>>(Handle(1))
             .expect("failed to get udp socket");
     }
 
     #[test]
     fn add_duplicate_socket() {
-        let mut set = Set::<TIMER_HZ, 2, 64>::new();
+        let mut set = Set::<2, 64>::new();
 
         assert_eq!(set.add(TcpSocket::new(0)), Ok(Handle(0)));
         assert_eq!(set.len(), 1);
@@ -301,7 +229,7 @@ mod tests {
 
     #[test]
     fn add_socket_to_full_set() {
-        let mut set = Set::<TIMER_HZ, 2, 64>::new();
+        let mut set = Set::<2, 64>::new();
 
         assert_eq!(set.add(TcpSocket::new(0)), Ok(Handle(0)));
         assert_eq!(set.len(), 1);
@@ -312,38 +240,38 @@ mod tests {
 
     #[test]
     fn get_socket() {
-        let mut set = Set::<TIMER_HZ, 2, 64>::new();
+        let mut set = Set::<2, 64>::new();
 
         assert_eq!(set.add(TcpSocket::new(0)), Ok(Handle(0)));
         assert_eq!(set.len(), 1);
         assert_eq!(set.add(UdpSocket::new(1)), Ok(Handle(1)));
         assert_eq!(set.len(), 2);
 
-        set.get::<TcpSocket<TIMER_HZ, 64>>(Handle(0))
+        set.get::<TcpSocket<64>>(Handle(0))
             .expect("failed to get tcp socket");
 
-        set.get::<UdpSocket<TIMER_HZ, 64>>(Handle(1))
+        set.get::<UdpSocket<64>>(Handle(1))
             .expect("failed to get udp socket");
     }
 
     #[test]
     fn get_socket_wrong_type() {
-        let mut set = Set::<TIMER_HZ, 2, 64>::new();
+        let mut set = Set::<2, 64>::new();
 
         assert_eq!(set.add(TcpSocket::new(0)), Ok(Handle(0)));
         assert_eq!(set.len(), 1);
         assert_eq!(set.add(UdpSocket::new(1)), Ok(Handle(1)));
         assert_eq!(set.len(), 2);
 
-        assert!(set.get::<TcpSocket<TIMER_HZ, 64>>(Handle(1)).is_err());
+        assert!(set.get::<TcpSocket<64>>(Handle(1)).is_err());
 
-        set.get::<UdpSocket<TIMER_HZ, 64>>(Handle(1))
+        set.get::<UdpSocket<64>>(Handle(1))
             .expect("failed to get udp socket");
     }
 
     #[test]
     fn get_socket_type() {
-        let mut set = Set::<TIMER_HZ, 2, 64>::new();
+        let mut set = Set::<2, 64>::new();
 
         assert_eq!(set.add(TcpSocket::new(0)), Ok(Handle(0)));
         assert_eq!(set.len(), 1);
@@ -356,7 +284,7 @@ mod tests {
 
     #[test]
     fn replace_socket() {
-        let mut set = Set::<TIMER_HZ, 2, 64>::new();
+        let mut set = Set::<2, 64>::new();
 
         assert_eq!(set.add(TcpSocket::new(0)), Ok(Handle(0)));
         assert_eq!(set.len(), 1);
@@ -366,28 +294,28 @@ mod tests {
         assert!(set.remove(Handle(0)).is_ok());
         assert_eq!(set.len(), 1);
 
-        assert!(set.get::<TcpSocket<TIMER_HZ, 64>>(Handle(0)).is_err());
+        assert!(set.get::<TcpSocket<64>>(Handle(0)).is_err());
 
-        set.get::<UdpSocket<TIMER_HZ, 64>>(Handle(1))
+        set.get::<UdpSocket<64>>(Handle(1))
             .expect("failed to get udp socket");
 
         assert_eq!(set.add(TcpSocket::new(0)), Ok(Handle(0)));
         assert_eq!(set.len(), 2);
 
-        set.get::<TcpSocket<TIMER_HZ, 64>>(Handle(0))
+        set.get::<TcpSocket<64>>(Handle(0))
             .expect("failed to get tcp socket");
     }
 
     #[test]
     fn prune_socket_set() {
-        let mut set = Set::<TIMER_HZ, 2, 64>::new();
+        let mut set = Set::<2, 64>::new();
 
         assert_eq!(set.add(TcpSocket::new(0)), Ok(Handle(0)));
         assert_eq!(set.len(), 1);
         assert_eq!(set.add(UdpSocket::new(1)), Ok(Handle(1)));
         assert_eq!(set.len(), 2);
 
-        set.get::<TcpSocket<TIMER_HZ, 64>>(Handle(0))
+        set.get::<TcpSocket<64>>(Handle(0))
             .expect("failed to get tcp socket");
 
         set.prune();

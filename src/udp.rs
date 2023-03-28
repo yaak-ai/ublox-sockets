@@ -1,8 +1,8 @@
 use core::cmp::min;
-use fugit::{ExtU32, SecsDurationU32};
 
-use super::{Error, Instant, Result, RingBuffer, Socket, SocketHandle, SocketMeta};
-pub use embedded_nal::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use super::{Error, Result, RingBuffer, Socket, SocketHandle, SocketMeta};
+use embassy_time::{Duration, Instant};
+pub use no_std_net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 /// A UDP socket ring buffer.
 pub type SocketBuffer<const N: usize> = RingBuffer<u8, N>;
@@ -25,28 +25,28 @@ impl Default for State {
 /// A UDP socket is bound to a specific endpoint, and owns transmit and receive
 /// packet buffers.
 #[derive(Debug)]
-pub struct UdpSocket<const TIMER_HZ: u32, const L: usize> {
+pub struct UdpSocket<const L: usize> {
     pub(crate) meta: SocketMeta,
     pub(crate) endpoint: Option<SocketAddr>,
-    check_interval: SecsDurationU32,
-    read_timeout: Option<SecsDurationU32>,
+    check_interval: Duration,
+    read_timeout: Option<Duration>,
     state: State,
     available_data: usize,
     rx_buffer: SocketBuffer<L>,
-    last_check_time: Option<Instant<TIMER_HZ>>,
-    closed_time: Option<Instant<TIMER_HZ>>,
+    last_check_time: Option<Instant>,
+    closed_time: Option<Instant>,
 }
 
-impl<const TIMER_HZ: u32, const L: usize> UdpSocket<TIMER_HZ, L> {
+impl<const L: usize> UdpSocket<L> {
     /// Create an UDP socket with the given buffers.
-    pub fn new(socket_id: u8) -> UdpSocket<TIMER_HZ, L> {
+    pub fn new(socket_id: u8) -> UdpSocket<L> {
         UdpSocket {
             meta: SocketMeta {
                 handle: SocketHandle(socket_id),
             },
-            check_interval: 15.secs(),
+            check_interval: Duration::from_secs(15),
             state: State::Closed,
-            read_timeout: Some(15.secs()),
+            read_timeout: Some(Duration::from_secs(15)),
             endpoint: None,
             available_data: 0,
             rx_buffer: SocketBuffer::new(),
@@ -89,18 +89,18 @@ impl<const TIMER_HZ: u32, const L: usize> UdpSocket<TIMER_HZ, L> {
         self.state = state
     }
 
-    pub fn should_update_available_data(&mut self, ts: Instant<TIMER_HZ>) -> bool {
+    pub fn should_update_available_data(&mut self) -> bool {
         self.last_check_time
-            .replace(ts)
-            .and_then(|last_check_time| ts.checked_duration_since(last_check_time))
+            .replace(Instant::now())
+            .and_then(|last_check_time| Instant::now().checked_duration_since(last_check_time))
             .map(|dur| dur >= self.check_interval)
             .unwrap_or(false)
     }
 
-    pub fn recycle(&self, ts: Instant<TIMER_HZ>) -> bool {
+    pub fn recycle(&self) -> bool {
         if let Some(read_timeout) = self.read_timeout {
             self.closed_time
-                .and_then(|closed_time| ts.checked_duration_since(closed_time))
+                .and_then(|closed_time| Instant::now().checked_duration_since(closed_time))
                 .map(|dur| dur >= read_timeout)
                 .unwrap_or(false)
         } else {
@@ -108,8 +108,8 @@ impl<const TIMER_HZ: u32, const L: usize> UdpSocket<TIMER_HZ, L> {
         }
     }
 
-    pub fn closed_by_remote(&mut self, ts: Instant<TIMER_HZ>) {
-        self.closed_time.replace(ts);
+    pub fn closed_by_remote(&mut self) {
+        self.closed_time.replace(Instant::now());
     }
 
     /// Set available data.
@@ -235,14 +235,14 @@ impl<const TIMER_HZ: u32, const L: usize> UdpSocket<TIMER_HZ, L> {
 }
 
 #[cfg(feature = "defmt")]
-impl<const TIMER_HZ: u32, const L: usize> defmt::Format for UdpSocket<TIMER_HZ, L> {
+impl<const L: usize> defmt::Format for UdpSocket<L> {
     fn format(&self, fmt: defmt::Formatter) {
         defmt::write!(fmt, "[{:?}, {:?}],", self.handle(), self.state())
     }
 }
 
-impl<const TIMER_HZ: u32, const L: usize> Into<Socket<TIMER_HZ, L>> for UdpSocket<TIMER_HZ, L> {
-    fn into(self) -> Socket<TIMER_HZ, L> {
+impl<const L: usize> Into<Socket<L>> for UdpSocket<L> {
+    fn into(self) -> Socket<L> {
         Socket::Udp(self)
     }
 }

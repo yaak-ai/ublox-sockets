@@ -39,9 +39,6 @@ pub enum Error {
     /// or a TCP connection attempt was made to an unspecified endpoint.
     Unaddressable,
 
-    Timer,
-    Timeout,
-
     SocketClosed,
     BadLength,
 
@@ -52,10 +49,10 @@ pub enum Error {
     SocketSetFull,
     InvalidSocket,
     DuplicateSocket,
+    Timeout,
 }
 
 type Result<T> = core::result::Result<T, Error>;
-pub type Instant<const TIMER_HZ: u32> = fugit::TimerInstantU32<TIMER_HZ>;
 
 /// A network socket.
 ///
@@ -69,11 +66,11 @@ pub type Instant<const TIMER_HZ: u32> = fugit::TimerInstantU32<TIMER_HZ>;
 /// [SocketSet::get]: struct.SocketSet.html#method.get
 #[non_exhaustive]
 #[derive(Debug)]
-pub enum Socket<const TIMER_HZ: u32, const L: usize> {
+pub enum Socket<const L: usize> {
     #[cfg(feature = "socket-udp")]
-    Udp(UdpSocket<TIMER_HZ, L>),
+    Udp(UdpSocket<L>),
     #[cfg(feature = "socket-tcp")]
-    Tcp(TcpSocket<TIMER_HZ, L>),
+    Tcp(TcpSocket<L>),
 }
 
 #[non_exhaustive]
@@ -84,7 +81,7 @@ pub enum SocketType {
     Tcp,
 }
 
-impl<const TIMER_HZ: u32, const L: usize> Socket<TIMER_HZ, L> {
+impl<const L: usize> Socket<L> {
     /// Return the socket handle.
     #[inline]
     pub fn handle(&self) -> SocketHandle {
@@ -107,10 +104,10 @@ impl<const TIMER_HZ: u32, const L: usize> Socket<TIMER_HZ, L> {
         }
     }
 
-    pub fn should_update_available_data(&mut self, ts: Instant<TIMER_HZ>) -> bool {
+    pub fn should_update_available_data(&mut self) -> bool {
         match self {
-            Socket::Tcp(s) => s.should_update_available_data(ts),
-            Socket::Udp(s) => s.should_update_available_data(ts),
+            Socket::Tcp(s) => s.should_update_available_data(),
+            Socket::Udp(s) => s.should_update_available_data(),
         }
     }
 
@@ -121,17 +118,17 @@ impl<const TIMER_HZ: u32, const L: usize> Socket<TIMER_HZ, L> {
         }
     }
 
-    pub fn recycle(&self, ts: Instant<TIMER_HZ>) -> bool {
+    pub fn recycle(&self) -> bool {
         match self {
-            Socket::Tcp(s) => s.recycle(ts),
-            Socket::Udp(s) => s.recycle(ts),
+            Socket::Tcp(s) => s.recycle(),
+            Socket::Udp(s) => s.recycle(),
         }
     }
 
-    pub fn closed_by_remote(&mut self, ts: Instant<TIMER_HZ>) {
+    pub fn closed_by_remote(&mut self) {
         match self {
-            Socket::Tcp(s) => s.closed_by_remote(ts),
-            Socket::Udp(s) => s.closed_by_remote(ts),
+            Socket::Tcp(s) => s.closed_by_remote(),
+            Socket::Udp(s) => s.closed_by_remote(),
         }
     }
 
@@ -165,13 +162,13 @@ impl<const TIMER_HZ: u32, const L: usize> Socket<TIMER_HZ, L> {
 }
 
 /// A conversion trait for network sockets.
-pub trait AnySocket<const TIMER_HZ: u32, const L: usize>: Sized {
-    fn downcast(socket_ref: SocketRef<'_, Socket<TIMER_HZ, L>>) -> Result<SocketRef<'_, Self>>;
+pub trait AnySocket<const L: usize>: Sized {
+    fn downcast(socket_ref: SocketRef<'_, Socket<L>>) -> Result<SocketRef<'_, Self>>;
 }
 
 #[cfg(feature = "socket-tcp")]
-impl<const TIMER_HZ: u32, const L: usize> AnySocket<TIMER_HZ, L> for TcpSocket<TIMER_HZ, L> {
-    fn downcast(ref_: SocketRef<'_, Socket<TIMER_HZ, L>>) -> Result<SocketRef<'_, Self>> {
+impl<const L: usize> AnySocket<L> for TcpSocket<L> {
+    fn downcast(ref_: SocketRef<'_, Socket<L>>) -> Result<SocketRef<'_, Self>> {
         match SocketRef::into_inner(ref_) {
             Socket::Tcp(ref mut socket) => Ok(SocketRef::new(socket)),
             _ => Err(Error::Illegal),
@@ -180,8 +177,8 @@ impl<const TIMER_HZ: u32, const L: usize> AnySocket<TIMER_HZ, L> for TcpSocket<T
 }
 
 #[cfg(feature = "socket-udp")]
-impl<const TIMER_HZ: u32, const L: usize> AnySocket<TIMER_HZ, L> for UdpSocket<TIMER_HZ, L> {
-    fn downcast(ref_: SocketRef<'_, Socket<TIMER_HZ, L>>) -> Result<SocketRef<'_, Self>> {
+impl<const L: usize> AnySocket<L> for UdpSocket<L> {
+    fn downcast(ref_: SocketRef<'_, Socket<L>>) -> Result<SocketRef<'_, Self>> {
         match SocketRef::into_inner(ref_) {
             Socket::Udp(ref mut socket) => Ok(SocketRef::new(socket)),
             _ => Err(Error::Illegal),

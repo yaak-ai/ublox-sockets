@@ -1,5 +1,5 @@
-use embedded_nal::SocketAddr;
 use heapless::{spsc::Queue, FnvIndexMap};
+use no_std_net::SocketAddr;
 
 use crate::SocketHandle;
 

@@ -1,23 +1,23 @@
-use super::{Error, Instant, Result, RingBuffer, Socket, SocketHandle, SocketMeta};
-use embedded_nal::SocketAddr;
-use fugit::{ExtU32, SecsDurationU32};
+use super::{Error, Result, RingBuffer, Socket, SocketHandle, SocketMeta};
+use embassy_time::{Duration, Instant};
+use no_std_net::SocketAddr;
 
 /// A TCP socket ring buffer.
 pub type SocketBuffer<const N: usize> = RingBuffer<u8, N>;
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum State<const TIMER_HZ: u32> {
+pub enum State {
     /// Freshly created, unsullied
     Created,
     WaitingForConnect(SocketAddr),
     /// TCP connected or UDP has an address
     Connected(SocketAddr),
     /// Block all writes (Socket is closed by remote)
-    ShutdownForWrite(Instant<TIMER_HZ>),
+    ShutdownForWrite(Instant),
 }
 
 #[cfg(feature = "defmt")]
-impl<const TIMER_HZ: u32> defmt::Format for State<TIMER_HZ> {
+impl defmt::Format for State {
     fn format(&self, fmt: defmt::Formatter) {
         match self {
             State::Created => defmt::write!(fmt, "State::Created"),
@@ -28,7 +28,7 @@ impl<const TIMER_HZ: u32> defmt::Format for State<TIMER_HZ> {
     }
 }
 
-impl<const TIMER_HZ: u32> Default for State<TIMER_HZ> {
+impl Default for State {
     fn default() -> Self {
         State::Created
     }
@@ -41,19 +41,19 @@ impl<const TIMER_HZ: u32> Default for State<TIMER_HZ> {
 /// accept several connections, as many sockets must be allocated, or any new connection
 /// attempts will be reset.
 #[derive(Debug)]
-pub struct TcpSocket<const TIMER_HZ: u32, const L: usize> {
+pub struct TcpSocket<const L: usize> {
     pub(crate) meta: SocketMeta,
-    state: State<TIMER_HZ>,
-    check_interval: SecsDurationU32,
-    read_timeout: Option<SecsDurationU32>,
+    state: State,
+    check_interval: Duration,
+    read_timeout: Option<Duration>,
     available_data: usize,
     rx_buffer: SocketBuffer<L>,
-    last_check_time: Option<Instant<TIMER_HZ>>,
+    last_check_time: Option<Instant>,
 }
 
-impl<const TIMER_HZ: u32, const L: usize> TcpSocket<TIMER_HZ, L> {
+impl<const L: usize> TcpSocket<L> {
     /// Create a socket using the given buffers.
-    pub fn new(socket_id: u8) -> TcpSocket<TIMER_HZ, L> {
+    pub fn new(socket_id: u8) -> TcpSocket<L> {
         TcpSocket {
             meta: SocketMeta {
                 handle: SocketHandle(socket_id),
@@ -61,8 +61,8 @@ impl<const TIMER_HZ: u32, const L: usize> TcpSocket<TIMER_HZ, L> {
             state: State::default(),
             rx_buffer: SocketBuffer::new(),
             available_data: 0,
-            check_interval: 15.secs(),
-            read_timeout: Some(15.secs()),
+            check_interval: Duration::from_secs(15),
+            read_timeout: Some(Duration::from_secs(15)),
             last_check_time: None,
         }
     }
@@ -90,7 +90,7 @@ impl<const TIMER_HZ: u32, const L: usize> TcpSocket<TIMER_HZ, L> {
     }
 
     /// Return the connection state, in terms of the TCP state machine.
-    pub fn state(&self) -> &State<TIMER_HZ> {
+    pub fn state(&self) -> &State {
         &self.state
     }
 
@@ -101,12 +101,14 @@ impl<const TIMER_HZ: u32, const L: usize> TcpSocket<TIMER_HZ, L> {
         self.last_check_time = None;
     }
 
-    pub fn should_update_available_data(&mut self, ts: Instant<TIMER_HZ>) -> bool {
+    pub fn should_update_available_data(&mut self) -> bool {
         // Cannot request available data on a socket that is closed by the
         // module
         if !self.is_connected() {
             return false;
         }
+
+        let ts = Instant::now();
 
         let should_update = self
             .last_check_time
@@ -121,11 +123,11 @@ impl<const TIMER_HZ: u32, const L: usize> TcpSocket<TIMER_HZ, L> {
         should_update
     }
 
-    pub fn recycle(&self, ts: Instant<TIMER_HZ>) -> bool {
+    pub fn recycle(&self) -> bool {
         if let Some(read_timeout) = self.read_timeout {
             match self.state {
                 State::Created | State::WaitingForConnect(_) | State::Connected(_) => false,
-                State::ShutdownForWrite(closed_time) => ts
+                State::ShutdownForWrite(closed_time) => Instant::now()
                     .checked_duration_since(closed_time)
                     .map(|dur| dur >= read_timeout)
                     .unwrap_or(false),
@@ -135,8 +137,8 @@ impl<const TIMER_HZ: u32, const L: usize> TcpSocket<TIMER_HZ, L> {
         }
     }
 
-    pub fn closed_by_remote(&mut self, ts: Instant<TIMER_HZ>) {
-        self.set_state(State::ShutdownForWrite(ts));
+    pub fn closed_by_remote(&mut self) {
+        self.set_state(State::ShutdownForWrite(Instant::now()));
         self.set_available_data(0);
     }
 
@@ -288,7 +290,7 @@ impl<const TIMER_HZ: u32, const L: usize> TcpSocket<TIMER_HZ, L> {
         self.rx_buffer.len()
     }
 
-    pub fn set_state(&mut self, state: State<TIMER_HZ>) {
+    pub fn set_state(&mut self, state: State) {
         debug!(
             "[TCP Socket] [{:?}] state change: {:?} -> {:?}",
             self.handle(),
@@ -299,8 +301,8 @@ impl<const TIMER_HZ: u32, const L: usize> TcpSocket<TIMER_HZ, L> {
     }
 }
 
-impl<const TIMER_HZ: u32, const L: usize> Into<Socket<TIMER_HZ, L>> for TcpSocket<TIMER_HZ, L> {
-    fn into(self) -> Socket<TIMER_HZ, L> {
+impl<const L: usize> Into<Socket<L>> for TcpSocket<L> {
+    fn into(self) -> Socket<L> {
         Socket::Tcp(self)
     }
 }

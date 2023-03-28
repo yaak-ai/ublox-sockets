@@ -1,6 +1,6 @@
-use embedded_nal::SocketAddr;
 use hash32::Hash;
 use heapless::{spsc::Queue, FnvIndexMap};
+use no_std_net::SocketAddr;
 
 use crate::{Error, SocketHandle};
 
