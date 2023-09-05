@@ -20,7 +20,7 @@ heapless = { version = "^0.7", features = ["serde"] }
 no-std-net = { version = "^0.5", features = ["serde"] }
 embedded-nal = "0.6.0"
 nb = "^1"
-atat = { version = "0.18", features = ["derive"] }
+atat = { version = "0.19", features = ["derive"] }
 hash32 = "0.2.1"
 hash32-derive = "^0.1.0"
 
